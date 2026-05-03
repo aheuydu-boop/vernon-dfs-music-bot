@@ -1,0 +1,72 @@
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes } = require('discord.js');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const ytdl = require('ytdl-core');
+const TOKEN = 'MTUwMDA5Mjg4OTcwMTgxMDI1Ng.G0cRbZ.X3lkSynVDQRw3ptHwuogpKA5BF1YzfDRpxCXF0';
+const CLIENT_ID = '1500092889701810256';
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages] });
+const queues = new Map();
+const commands = [new SlashCommandBuilder().setName('play').setDescription('Play musik').addStringOption(opt => opt.setName('url').setDescription('URL YouTube').setRequired(true)),new SlashCommandBuilder().setName('skip').setDescription('Skip lagu'),new SlashCommandBuilder().setName('stop').setDescription('Stop musik'),new SlashCommandBuilder().setName('queue').setDescription('Lihat antrian'),new SlashCommandBuilder().setName('pause').setDescription('Pause'),new SlashCommandBuilder().setName('resume').setDescription('Resume')].map(cmd => cmd.toJSON());
+const rest = new REST({ version: '10' }).setToken(TOKEN);
+rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands }).then(() => console.log('Commands terdaftar!')).catch(console.error);
+function playNext(guildId) {
+const q = queues.get(guildId);
+if (!q || q.songs.length === 0) { q?.connection?.destroy(); queues.delete(guildId); return; }
+const song = q.songs[0];
+const stream = ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio' });
+const resource = createAudioResource(stream);
+q.player.play(resource);
+q.player.once(AudioPlayerStatus.Idle, () => { q.songs.shift(); playNext(guildId); });
+q.textChannel.send('Memutar: ' + song.title);
+}
+client.once('ready', () => console.log('Bot online: ' + client.user.tag));
+client.on('interactionCreate', async interaction => {
+if (!interaction.isChatInputCommand()) return;
+const { commandName, guild, member } = interaction;
+if (commandName === 'play') {
+const vc = member.voice.channel;
+if (!vc) return interaction.reply({ content: 'Masuk voice channel dulu!', ephemeral: true });
+const url = interaction.options.getString('url');
+if (!ytdl.validateURL(url)) return interaction.reply({ content: 'URL tidak valid!', ephemeral: true });
+await interaction.deferReply();
+try {
+const info = await ytdl.getInfo(url);
+const song = { title: info.videoDetails.title, url };
+let q = queues.get(guild.id);
+if (!q) {
+const player = createAudioPlayer();
+const connection = joinVoiceChannel({ channelId: vc.id, guildId: guild.id, adapterCreator: guild.voiceAdapterCreator });
+connection.subscribe(player);
+q = { connection, player, songs: [song], textChannel: interaction.channel };
+queues.set(guild.id, q);
+playNext(guild.id);
+await interaction.editReply('Memutar: ' + song.title);
+} else {
+q.songs.push(song);
+await interaction.editReply('Ditambahkan: ' + song.title);
+}
+} catch(e) { await interaction.editReply('Gagal memuat lagu.'); }
+} else if (commandName === 'skip') {
+const q = queues.get(guild.id);
+if (!q) return interaction.reply('Tidak ada musik!');
+q.songs.shift(); playNext(guild.id);
+interaction.reply('Di-skip!');
+} else if (commandName === 'stop') {
+const q = queues.get(guild.id);
+if (!q) return interaction.reply('Tidak ada musik!');
+q.songs = []; q.connection.destroy(); queues.delete(guild.id);
+interaction.reply('Musik dihentikan.');
+} else if (commandName === 'queue') {
+const q = queues.get(guild.id);
+if (!q || q.songs.length === 0) return interaction.reply('Antrian kosong!');
+interaction.reply('Antrian:\n' + q.songs.map((s,i) => (i+1)+'. '+s.title).join('\n'));
+} else if (commandName === 'pause') {
+const q = queues.get(guild.id);
+if (!q) return interaction.reply('Tidak ada musik!');
+q.player.pause(); interaction.reply('Di-pause.');
+} else if (commandName === 'resume') {
+const q = queues.get(guild.id);
+if (!q) return interaction.reply('Tidak ada musik!');
+q.player.unpause(); interaction.reply('Dilanjutkan.');
+}
+});
+client.login(TOKEN);
