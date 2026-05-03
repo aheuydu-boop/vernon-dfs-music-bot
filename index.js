@@ -1,10 +1,10 @@
-const TOKEN=process.env.TOKEN;const TOKEN=process.env.TOKEN;const {Client,GatewayIntentBits,SlashCommandBuilder,REST,Routes,EmbedBuilder}=require("discord.js");
+const {Client,GatewayIntentBits,SlashCommandBuilder,REST,Routes,EmbedBuilder}=require("discord.js");
 const {joinVoiceChannel,createAudioPlayer,createAudioResource,AudioPlayerStatus}=require("@discordjs/voice");
 const {execSync,exec}=require("child_process");
 const fs=require("fs");
 const path=require("path");
-const TOKEN="MTUwMDA5Mjg4OTcwMTgxMDI1Ng.G0cRbZ.X3lkSynVDQRw3ptHwuogpKA5BF1YzfDRpxCXF0";
-const CLIENT_ID="1500092889701810256";
+const TOKEN=process.env.TOKEN;
+const CLIENT_ID=process.env.CLIENT_ID||"1500092889701810256";
 const client=new Client({intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildVoiceStates,GatewayIntentBits.GuildMessages]});
 const queues=new Map();
 const rest=new REST({version:"10"}).setToken(TOKEN);
